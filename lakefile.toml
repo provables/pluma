@@ -17,6 +17,10 @@ name = "Cli"
 git = "https://github.com/leanprover/lean4-cli.git"
 rev = "v4.20.0"
 
+[[require]]
+name = "oeis-lt-proto"
+path = "/Users/walter/repos/oeis-lt-proto"
+
 [[lean_lib]]
 name = "OEISLt"
 

@@ -29,7 +29,7 @@
             lean-toolchain
             elan
             go-task
-            python
+            python3
             uv
             findutils
             lsof

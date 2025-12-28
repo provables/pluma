@@ -1,0 +1,17 @@
+port = 12
+supervised = true
+wait = true
+foreground = true
+#plugins = ["OEISLt.Plugins.Dummy"]
+
+[[plugins]]
+module = "OEISLt.Plugins.Dummy"
+name = "Dummy"
+
+[[plugins]]
+module = "Foo"
+name = "Bar"
+
+[[plugins]]
+module = "Foo"
+name = "Bar"
