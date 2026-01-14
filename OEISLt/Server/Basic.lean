@@ -1,80 +1,113 @@
+import Std.Internal.UV.TCP
+import OEISLt.Version
 import OEISLt.Cli.Config
 import OEISLtProto
+-- this is here just for testing. Remove when the server loads from config
 import OEISLt.Plugins.Dummy
+
+open Lean Std Net Std.Internal.UV.TCP
+
+instance : ToString SocketAddress where
+  toString
+  | .v4 ⟨a, p⟩ => s!"{a}:{p}"
+  | .v6 ⟨a, p⟩ => s!"{a}:{p}"
 
 namespace Server
 
-open Lean Std
+instance : Repr Json where
+  reprPrec j _ := Json.render j
 
-def C : Std.HashMap String (Σ α : Type, Σ _ : Lean.FromJson α, α → Nat) := default
+inductive ServerError where
+  | FromOEISM (error : String)
+  | MissingPlugin (name : Name)
+  | JsonDecodeError (val : Json)
+  | ImportError (error : String)
+  | SocketError (error : String)
+  deriving Repr
 
--- abbrev OEISM := IO
--- abbrev Plugin := (Σ input : Type, Σ _ : FromJson input, Σ output : Type, Σ _ : ToJson output, input → OEISM output)
--- def Plugins : Std.HashMap String Plugin := default
+structure ServerContext where
+  env : Environment
+  ctx : Core.Context
+  state : Core.State
+  config : Config
+  version : String
 
-def foo1 : String → Nat := fun _ => 0
-def foo2 : Nat → Nat := fun n => n
-def foo3 : Config → Nat := fun c => c.port
+abbrev ServerM := ReaderT ServerContext (EIO ServerError)
 
--- run_meta do
---   let u := C.insert "bar" ⟨_, inferInstance, foo1⟩
---   let v := u.insert "baz" ⟨_, inferInstance, foo2⟩
---   --let z := v.insert "spa" ⟨Config, inferInstance, foo3⟩
---   let ⟨t, h, w⟩  := v.getD "bar" ⟨_, inferInstance, fun (_ : Nat) => 1⟩
---   let y : Except String t := Lean.FromJson.fromJson? "3"
---   dbg_trace "foo"
-
-def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state: Core.State) : IO α :=
+def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State) : IO α :=
   ReaderT.run a ⟨env, ctx, state⟩
 
-def runM : MetaM Unit :=
-  let x := Dummy.plugin.cmd
-  dbg_trace "cmd = {x}"
-  let ⟨inp, _, out, _, f ⟩ := Dummy.plugin.function
-  let u : Except String inp := FromJson.fromJson? 3
-  match u with
-  | .ok v => do
-    let w := f v
-    let env ← getEnv
-    let ctx : Core.Context := {fileName := "", fileMap := default}
-    let state : Core.State := {env}
-    let z ← runOEISM w env ctx state
-    let z2 : Json := ToJson.toJson z
-    dbg_trace "output = {z2}"
-  | .error s => dbg_trace "bad: {s}"
-  return ()
+instance : MonadLift OEISM ServerM where
+  monadLift o := do
+    let x ← read
+    IO.toEIO (fun e => ServerError.FromOEISM s!"{e}") <| runOEISM o x.env x.ctx x.state
 
-run_meta
-  runM
+def runServerM₀ {α : Type} (act : ServerM α) (ctx : ServerContext) : IO α :=
+  EIO.toIO (fun e => s!"Server error: {repr e}") <| ReaderT.run act ctx
 
-#check Dummy.plugin
-#check evalConst
-#check Plugin
+def runServerM {α : Type} (act : ServerM α) (env : Environment) (ctx : Core.Context)
+    (state : Core.State) (config : Config) (version : String) : IO α :=
+  runServerM₀ act ⟨env, ctx, state, config, version⟩
 
-unsafe def run : ConfigM UInt32 := do
+def toIO {α : Type} (act : ServerM α) : ServerM (IO α) := Functor.map pure act
+
+unsafe
+def runPlugin (name : Name) (inp : Json) : ServerM Json := do
+  let data := (← read).config.plugins
+  let some pluginData := data.get? name | throw <| .MissingPlugin name
+  let plugin := s!"{pluginData.name}.plugin".toName
+  match (← read).env.evalConst Plugin default plugin with
+  | .ok v =>
+    let ⟨_, _, _, _, f⟩ := v.function
+    let .ok u := FromJson.fromJson? inp | throw <| .JsonDecodeError inp
+    return ToJson.toJson (← f u)
+  | .error e =>
+    throw <| ServerError.ImportError e
+
+def processClient (socket : Socket) : ServerM UInt32 := do
+  IO.println s!"processing client with socket {← socket.getPeerName}"
+  return 0
+
+def server : ServerM UInt32 := do
+  -- here we can run OEISM
+  -- get json from socket
+  -- run plugin
+  -- send json to socket
+  let serverCtx ← read
+  let config := serverCtx.config
+  let socket ← Internal.UV.TCP.Socket.new
+  let addr := IPv4Addr.ofString "0.0.0.0" |>.getD default
+  let endpoint := SocketAddress.v4 {addr := addr, port := config.port}
+  socket.bind endpoint
+  socket.listen 1
+  IO.println s!"[OEIS-Lt v{serverCtx.version}] Ready on port {config.port}"
+  while true do
+    let conn ← socket.accept
+    let result := conn.result!
+    let _ ← Task.get <| result.map (fun t => do
+      match t with
+      | .ok s =>
+        let client ← s.getPeerName
+        IO.println s!"client connected: {client}"
+        let _u ← IO.asTask <| ← toIO <| processClient s
+      | .error e =>
+        IO.println s!"client connection error: {e}"
+    )
+  return default
+
+unsafe
+def run : ConfigM UInt32 := do
   -- Here load modules from `plugins`
   -- and ServerM.run the main function
   let cfg ← read
-  let modules := cfg.plugins
-  dbg_trace "modules: {modules}"
+  let modules := cfg.plugins.values.toArray.map (·.mod)
+  dbg_trace "Loading modules: {modules}"
   enableInitializersExecution
   initSearchPath (← findSysroot)
   let env ← importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
-  let myModule := "OEISLt.Plugins.Dummy"
-  let myFun := s!"Dummy.plugin"
-  let myFunName := String.toName myFun
-  --let u ← runOEISM (d)
-  let z := env.evalConst Plugin default myFunName
-  match z with
-  | .ok v =>
-    dbg_trace v.cmd
-    let f := v.function
-  | .error e => dbg_trace "error: {e}"
-  return 0
-
-run_cmd do
-  let e ← runConfigM run
-  dbg_trace "e: {e}"
-  dbg_trace "foo"
+  let ctx : Core.Context := {fileName := "", fileMap := default}
+  let state : Core.State := {env}
+  let out ← runServerM server env ctx state cfg VERSION
+  return out
 
 end Server

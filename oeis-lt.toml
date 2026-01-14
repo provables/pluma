@@ -1,4 +1,4 @@
-port = 12
+port = 7777
 supervised = true
 wait = true
 foreground = true
@@ -7,11 +7,3 @@ foreground = true
 [[plugins]]
 module = "OEISLt.Plugins.Dummy"
 name = "Dummy"
-
-[[plugins]]
-module = "Foo"
-name = "Bar"
-
-[[plugins]]
-module = "Foo"
-name = "Bar"
