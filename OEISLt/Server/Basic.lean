@@ -2,61 +2,20 @@ import Std.Internal.UV.TCP
 import OEISLt.Version
 import OEISLt.Cli.Config
 import OEISLtProto
+import OEISLt.Server.Control
+import OEISLt.Server.Socket
 -- this is here just for testing. Remove when the server loads from config
 import OEISLt.Plugins.Dummy
 
 open Lean Std Net Std.Internal.UV.TCP
 
-instance : ToString SocketAddress where
-  toString
-  | .v4 ⟨a, p⟩ => s!"{a}:{p}"
-  | .v6 ⟨a, p⟩ => s!"{a}:{p}"
-
 namespace Server
-
-instance : Repr Json where
-  reprPrec j _ := Json.render j
-
-inductive ServerError where
-  | FromOEISM (error : String)
-  | MissingPlugin (name : Name)
-  | JsonDecodeError (val : Json)
-  | ImportError (error : String)
-  | SocketError (error : String)
-  deriving Repr
-
-structure ServerContext where
-  env : Environment
-  ctx : Core.Context
-  state : Core.State
-  config : Config
-  version : String
-
-abbrev ServerM := ReaderT ServerContext (EIO ServerError)
-
-def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State) : IO α :=
-  ReaderT.run a ⟨env, ctx, state⟩
-
-instance : MonadLift OEISM ServerM where
-  monadLift o := do
-    let x ← read
-    IO.toEIO (fun e => ServerError.FromOEISM s!"{e}") <| runOEISM o x.env x.ctx x.state
-
-def runServerM₀ {α : Type} (act : ServerM α) (ctx : ServerContext) : IO α :=
-  EIO.toIO (fun e => s!"Server error: {repr e}") <| ReaderT.run act ctx
-
-def runServerM {α : Type} (act : ServerM α) (env : Environment) (ctx : Core.Context)
-    (state : Core.State) (config : Config) (version : String) : IO α :=
-  runServerM₀ act ⟨env, ctx, state, config, version⟩
-
-def toIO {α : Type} (act : ServerM α) : ServerM (IO α) := Functor.map pure act
 
 unsafe
 def runPlugin (name : Name) (inp : Json) : ServerM Json := do
   let data := (← read).config.plugins
   let some pluginData := data.get? name | throw <| .MissingPlugin name
-  let plugin := s!"{pluginData.name}.plugin".toName
-  match (← read).env.evalConst Plugin default plugin with
+  match (← read).env.evalConst Plugin default pluginData.name with
   | .ok v =>
     let ⟨_, _, _, _, f⟩ := v.function
     let .ok u := FromJson.fromJson? inp | throw <| .JsonDecodeError inp
@@ -64,11 +23,34 @@ def runPlugin (name : Name) (inp : Json) : ServerM Json := do
   | .error e =>
     throw <| ServerError.ImportError e
 
+unsafe
+def runMessage (inp : String) : ServerM String := do
+  let .ok obj := Json.parse inp | throw <| .JsonDecodeError inp
+  let x := obj.getObjValAs? String "cmd"
+  match x with
+  | .ok command =>
+    let y := obj.getObjValAs? Json "args"
+    match y with
+    | .ok argsJson =>
+      let outJson ← runPlugin command.toName argsJson
+      return ToString.toString outJson
+    | .error _ =>
+      throw <| .ClientError obj
+  | .error _ => throw <| .ClientError obj
+
+unsafe
 def processClient (socket : Socket) : ServerM UInt32 := do
   IO.println s!"processing client with socket {← socket.getPeerName}"
+  let s ← read
+  let t := s.config.plugins.keys
+  dbg_trace "plugins available: {t}"
+  let x : Json := 3
+  let y ← runPlugin `Dummy.plugin x
+  IO.println s!"output of dummy: {y}"
   return 0
 
-def server : ServerM UInt32 := do
+unsafe
+def server : ServerM Unit := do
   -- here we can run OEISM
   -- get json from socket
   -- run plugin
@@ -81,6 +63,7 @@ def server : ServerM UInt32 := do
   socket.bind endpoint
   socket.listen 1
   IO.println s!"[OEIS-Lt v{serverCtx.version}] Ready on port {config.port}"
+
   while true do
     let conn ← socket.accept
     let result := conn.result!
@@ -89,14 +72,13 @@ def server : ServerM UInt32 := do
       | .ok s =>
         let client ← s.getPeerName
         IO.println s!"client connected: {client}"
-        let _u ← IO.asTask <| ← toIO <| processClient s
+        let _u ← IO.asTask <| ← toIO <| readAndProcess socket runMessage
       | .error e =>
         IO.println s!"client connection error: {e}"
     )
-  return default
 
 unsafe
-def run : ConfigM UInt32 := do
+def run : ConfigM Unit := do
   -- Here load modules from `plugins`
   -- and ServerM.run the main function
   let cfg ← read
@@ -107,7 +89,6 @@ def run : ConfigM UInt32 := do
   let env ← importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
   let ctx : Core.Context := {fileName := "", fileMap := default}
   let state : Core.State := {env}
-  let out ← runServerM server env ctx state cfg VERSION
-  return out
+  runServerM server env ctx state cfg VERSION
 
 end Server

@@ -6,4 +6,4 @@ foreground = true
 
 [[plugins]]
 module = "OEISLt.Plugins.Dummy"
-name = "Dummy"
+name = "Dummy.plugin"
