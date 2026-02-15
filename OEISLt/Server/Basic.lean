@@ -12,9 +12,13 @@ open Lean Std Net Std.Internal.UV.TCP
 namespace Server
 
 unsafe
-def runPlugin (name : Name) (inp : Json) : ServerM Json := do
+def runPlugin (command : String) (inp : Json) : ServerM Json := do
   let data := (← read).config.plugins
-  let some pluginData := data.get? name | throw <| .MissingPlugin name
+  dbg_trace "starting runPlugin"
+  let some cmd := (← read).commands.get? command | throw <| .MissingPlugin command
+  dbg_trace "got command {cmd}"
+  let some pluginData := data.get? cmd | throw <| .MissingPlugin command
+  dbg_trace "got plugin {pluginData.name}"
   match (← read).env.evalConst Plugin default pluginData.name with
   | .ok v =>
     let ⟨_, _, _, _, f⟩ := v.function
@@ -26,17 +30,10 @@ def runPlugin (name : Name) (inp : Json) : ServerM Json := do
 unsafe
 def runMessage (inp : String) : ServerM String := do
   let .ok obj := Json.parse inp | throw <| .JsonDecodeError inp
-  let x := obj.getObjValAs? String "cmd"
-  match x with
-  | .ok command =>
-    let y := obj.getObjValAs? Json "args"
-    match y with
-    | .ok argsJson =>
-      let outJson ← runPlugin command.toName argsJson
-      return ToString.toString outJson
-    | .error _ =>
-      throw <| .ClientError obj
-  | .error _ => throw <| .ClientError obj
+  let command ← obj.getObjValAs? String "cmd" |>.mapError (ServerError.MessageError ·)
+  let args ← obj.getObjValAs? Json "args" |>.mapError (ServerError.MessageError ·)
+  let out ← runPlugin command args
+  return ToString.toString out
 
 unsafe
 def processClient (socket : Socket) : ServerM UInt32 := do
@@ -45,12 +42,12 @@ def processClient (socket : Socket) : ServerM UInt32 := do
   let t := s.config.plugins.keys
   dbg_trace "plugins available: {t}"
   let x : Json := 3
-  let y ← runPlugin `Dummy.plugin x
+  let y ← runPlugin "dummy" x
   IO.println s!"output of dummy: {y}"
   return 0
 
 unsafe
-def server : ServerM Unit := do
+def server : ServerM UInt32 := do
   -- here we can run OEISM
   -- get json from socket
   -- run plugin
@@ -63,7 +60,8 @@ def server : ServerM Unit := do
   socket.bind endpoint
   socket.listen 1
   IO.println s!"[OEIS-Lt v{serverCtx.version}] Ready on port {config.port}"
-
+  let commands := serverCtx.commands
+  IO.println s!"Plugins loaded: {commands.keys}"
   while true do
     let conn ← socket.accept
     let result := conn.result!
@@ -72,13 +70,22 @@ def server : ServerM Unit := do
       | .ok s =>
         let client ← s.getPeerName
         IO.println s!"client connected: {client}"
-        let _u ← IO.asTask <| ← toIO <| readAndProcess socket runMessage
+        let _u ← IO.asTask <| ← toIO <| readAndProcess s runMessage
       | .error e =>
         IO.println s!"client connection error: {e}"
     )
+  return 0
 
 unsafe
-def run : ConfigM Unit := do
+def mkCommandTable (env : Environment) : ConfigM (Std.HashMap String Name) := do
+  let u ← (← read).plugins.keys.mapM (fun k => do
+    let v ← env.evalConst Plugin default k |>.map (·.cmd) |>.mapError (IO.Error.userError ·)
+    return (v, k)
+  )
+  return Std.HashMap.ofList u
+
+unsafe
+def run : ConfigM UInt32 := do
   -- Here load modules from `plugins`
   -- and ServerM.run the main function
   let cfg ← read
@@ -89,6 +96,7 @@ def run : ConfigM Unit := do
   let env ← importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
   let ctx : Core.Context := {fileName := "", fileMap := default}
   let state : Core.State := {env}
-  runServerM server env ctx state cfg VERSION
+  let commands ← mkCommandTable env
+  runServerM server env ctx state cfg commands VERSION
 
 end Server

@@ -61,7 +61,7 @@ def loopByLines
 run_meta do
   let env ← getEnv
   let x : ByteArray := "foobar\nbaz\nspam".toUTF8
-  let y ← runServerM₀ (byLines p x) ⟨env, {fileName := "", fileMap := default}, {env}, default, default⟩
+  let y ← runServerM₀ (byLines p x) ⟨env, {fileName := "", fileMap := default}, {env}, default, default, default⟩
   dbg_trace String.fromUTF8! y
   -- let readArg : ByteArray → ServerM ByteArray := fun bs => do
   --   IO.println s!"readArg function"
