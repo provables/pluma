@@ -40,15 +40,16 @@ def onError (err : ServerError) : Json :=
   ]
 
 unsafe
-def runPluginOnString (inp : String) : ServerM Json := do
-  let .ok obj := Json.parse inp | throw <| .JsonDecodeError inp
+def runPluginOnString (inp : ByteArray) : ServerM Json := do
+  let some s := String.fromUTF8? inp | throw ServerError.UTF8Error
+  let .ok obj := Json.parse s | throw <| .JsonDecodeError s
   let command ← obj.getObjValAs? String "cmd" |>.mapError (ServerError.MessageError ·)
   let args ← obj.getObjValAs? Json "args" |>.mapError (ServerError.MessageError ·)
   runPluginJson command args
 
 unsafe
-def runMessage (inp : String) : BaseServerM String :=
-  return ToString.toString <| match (← toBase <| runPluginOnString inp) with
+def runMessage (inp : ByteArray) : BaseServerM ByteArray := do
+  return String.toUTF8 <| ToString.toString <| match (← toBase <| runPluginOnString inp) with
   | .ok r => onSuccess r
   | .error e => onError e
 

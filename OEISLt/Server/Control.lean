@@ -18,6 +18,7 @@ inductive ServerError where
   | MessageError (error : String)
   | ImportError (error : String)
   | SocketError (error : String)
+  | UTF8Error
   deriving Repr
 
 structure ServerContext where

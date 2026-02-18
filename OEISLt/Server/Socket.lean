@@ -12,44 +12,36 @@ namespace Server
 
 def MAX_BUFFER := 8192
 
-def readAndProcess (socket : Socket) (f : String → BaseServerM String)
+def readAndProcess (socket : Socket) (f : ByteArray → BaseServerM ByteArray)
     : ServerM UInt32 := do
   let mut data : ByteArray := default
   while true do
-    -- TODO: change result! to result?
-    let r := (← socket.recv? MAX_BUFFER).result?.map (fun t => t)
-    let reader_task := (← socket.recv? MAX_BUFFER).result!
-    let (e, remaining) ← reader_task.map (fun t => do
+    let (e, remaining) ← (← socket.recv? MAX_BUFFER).result?.map (fun t => do
       match t with
-      | .ok none =>
+      | some (.ok none) =>
         IO.println s!"client disconnected: {← socket.getPeerName}"
         return (some 0, default)
-      | .ok (some u) =>
+      | some (.ok (some u)) =>
         if let some i := u.findIdx? (· == 10) then
           let data_received := data.append <| u.extract 0 (i + 1)
           let remaining := u.extract (i + 1) u.size
-          match String.fromUTF8? data_received with
-          | some text =>
-            IO.println s!"got data: {text.trimRight}"
-              let output ← f text
-              -- TODO: return JSON ok
-              match (← socket.send <| String.toUTF8 output).result?.get with
-              | some (.ok _) => return (none, remaining)
-              | some (.error e) =>
-                IO.println s!"got error while writing: {e}"
-                return (some 1, default)
-              | none =>
-                IO.println s!""
-                return (some 1, default)
+          let output ← f data_received
+          match (← socket.send output).result?.get with
+          | some (.ok _) => return (none, remaining)
+          | some (.error e) =>
+            IO.println s!"got error while writing: {e}"
+            return (some 1, default)
           | none =>
-            IO.println "got data but not utf8"
-            -- TODO return error to client
-            return (none, remaining)
+            IO.println s!"internal error: promise dropped while writing"
+            return (some 1, default)
         else
           -- more data to read, keep looping
           return (none, data.append u)
-      | .error v =>
+      | some (.error v) =>
         IO.println s!"got error while reading: {v}"
+        return (some 1, default)
+      | none =>
+        IO.println s!"internal error: promise dropped while reading"
         return (some 1, default)
     ) |>.get
     data := remaining
