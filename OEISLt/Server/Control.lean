@@ -28,7 +28,11 @@ structure ServerContext where
   commands : Std.HashMap String Name
   version : String
 
+abbrev BaseServerM := ReaderT ServerContext BaseIO
 abbrev ServerM := ReaderT ServerContext (EIO ServerError)
+
+def toBase {α : Type} (act : ServerM α) : BaseServerM (Except ServerError α) := do
+  EIO.toBaseIO <| ReaderT.run act (← read)
 
 def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State) : IO α :=
   ReaderT.run a ⟨env, ctx, state⟩
@@ -37,6 +41,9 @@ instance : MonadLift OEISM ServerM where
   monadLift o := do
     let x ← read
     IO.toEIO (fun e => ServerError.FromOEISM s!"{e}") <| runOEISM o x.env x.ctx x.state
+
+instance : MonadLift BaseServerM ServerM where
+  monadLift o := return (← o)
 
 def runServerM₀ {α : Type} (act : ServerM α) (ctx : ServerContext) : IO α :=
   EIO.toIO (fun e => s!"Server error: {repr e}") <| ReaderT.run act ctx

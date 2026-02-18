@@ -12,7 +12,7 @@ open Lean Std Net Std.Internal.UV.TCP
 namespace Server
 
 unsafe
-def runPlugin (command : String) (inp : Json) : ServerM Json := do
+def runPluginJson (command : String) (inp : Json) : ServerM Json := do
   let data := (← read).config.plugins
   dbg_trace "starting runPlugin"
   let some cmd := (← read).commands.get? command | throw <| .MissingPlugin command
@@ -27,13 +27,30 @@ def runPlugin (command : String) (inp : Json) : ServerM Json := do
   | .error e =>
     throw <| ServerError.ImportError e
 
+def onSuccess (obj : Json) : Json :=
+  Json.mkObj [
+    ("status", true),
+    ("result", obj)
+  ]
+
+def onError (err : ServerError) : Json :=
+  Json.mkObj [
+    ("status", false),
+    ("error", Json.str s!"{repr err}")
+  ]
+
 unsafe
-def runMessage (inp : String) : ServerM String := do
+def runPluginOnString (inp : String) : ServerM Json := do
   let .ok obj := Json.parse inp | throw <| .JsonDecodeError inp
   let command ← obj.getObjValAs? String "cmd" |>.mapError (ServerError.MessageError ·)
   let args ← obj.getObjValAs? Json "args" |>.mapError (ServerError.MessageError ·)
-  let out ← runPlugin command args
-  return ToString.toString out
+  runPluginJson command args
+
+unsafe
+def runMessage (inp : String) : BaseServerM String :=
+  return ToString.toString <| match (← toBase <| runPluginOnString inp) with
+  | .ok r => onSuccess r
+  | .error e => onError e
 
 unsafe
 def processClient (socket : Socket) : ServerM UInt32 := do
@@ -42,7 +59,7 @@ def processClient (socket : Socket) : ServerM UInt32 := do
   let t := s.config.plugins.keys
   dbg_trace "plugins available: {t}"
   let x : Json := 3
-  let y ← runPlugin "dummy" x
+  let y ← runPluginJson "dummy" x
   IO.println s!"output of dummy: {y}"
   return 0
 
