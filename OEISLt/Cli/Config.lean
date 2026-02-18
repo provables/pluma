@@ -101,10 +101,10 @@ def runConfigM {α : Type} (act : ConfigM α) : IO α := do
   let cfg ← EIO.toIO (fun e => IO.Error.userError s!"{e}") <| loadConfigFromEnv "OEISLT_CONFIG_FILE"
   ReaderT.run act cfg
 
-run_meta do
-  -- let t ← EIO.toIO (fun e => IO.Error.userError s!"{e}") <| loadConfigToml "./oeis-lt.toml"
-  -- let x := decodePlugin t
-  -- dbg_trace (repr x)
-  let x := loadConfig "./oeis-lt.toml"
-  let y ← EIO.toIO (fun e => IO.Error.userError s!"Error: {e}") x
-  dbg_trace "Config: {repr y}"
+-- run_meta do
+--   -- let t ← EIO.toIO (fun e => IO.Error.userError s!"{e}") <| loadConfigToml "./oeis-lt.toml"
+--   -- let x := decodePlugin t
+--   -- dbg_trace (repr x)
+--   let x := loadConfig "./oeis-lt.toml"
+--   let y ← EIO.toIO (fun e => IO.Error.userError s!"Error: {e}") x
+--   dbg_trace "Config: {repr y}"

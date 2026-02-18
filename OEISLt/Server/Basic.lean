@@ -43,15 +43,18 @@ unsafe
 def runPluginOnString (inp : ByteArray) : ServerM Json := do
   let some s := String.fromUTF8? inp | throw ServerError.UTF8Error
   let .ok obj := Json.parse s | throw <| .JsonDecodeError s
-  let command ← obj.getObjValAs? String "cmd" |>.mapError (ServerError.MessageError ·)
-  let args ← obj.getObjValAs? Json "args" |>.mapError (ServerError.MessageError ·)
+  let command ← obj.getObjValAs? String "cmd" |>.mapError
+    (ServerError.MessageError s!"missing or invalid 'cmd' key: {·}")
+  let args ← obj.getObjValAs? Json "args" |>.mapError
+    (ServerError.MessageError s!"missing or invalid 'args' key': {·}")
   runPluginJson command args
 
 unsafe
 def runMessage (inp : ByteArray) : BaseServerM ByteArray := do
-  return String.toUTF8 <| ToString.toString <| match (← toBase <| runPluginOnString inp) with
+  let outMsg := ToString.toString <| match (← toBase <| runPluginOnString inp) with
   | .ok r => onSuccess r
   | .error e => onError e
+  return String.toUTF8 s!"{outMsg}\n"
 
 unsafe
 def processClient (socket : Socket) : ServerM UInt32 := do
