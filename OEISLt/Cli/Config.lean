@@ -10,7 +10,7 @@ structure PluginData where
   deriving Repr, Inhabited
 
 structure Config where
-  port : Nat
+  port : UInt16
   supervised : Bool
   wait : Bool
   foreground : Bool
@@ -49,7 +49,7 @@ def mkConfigFromTable (t : Table) : Except String Config :=
         match v with
         | .integer _ n =>
           if n ≥ 0 then
-            return {d with port := n.toNat}
+            return {d with port := n.toNat.toUInt16}
           else
             throw s!"`port` cannot be negative, got {n}"
         | _ => throw s!"`port` has to be a natural number, got {v}"

@@ -10,7 +10,7 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         shell = shell-utils.myShell.${system};
-        lean-toolchain = lean-toolchain-nix.packages.${system}.lean-toolchain-4_20;
+        lean-toolchain = lean-toolchain-nix.packages.${system}.lean-toolchain-4_27;
         oeis-lt = pkgs.writeShellApplication {
           name = "oeis-lt";
           text = ''

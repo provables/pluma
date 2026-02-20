@@ -21,9 +21,7 @@ def runPluginJson (command : String) (inp : Json) : ServerM Json := do
   dbg_trace "got plugin {pluginData.name}"
   match (← read).env.evalConst Plugin default pluginData.name with
   | .ok v =>
-    let ⟨_, _, _, _, f⟩ := v.function
-    let .ok u := FromJson.fromJson? inp | throw <| .JsonDecodeError inp
-    return ToJson.toJson (← f u)
+    v.function inp
   | .error e =>
     throw <| ServerError.ImportError e
 

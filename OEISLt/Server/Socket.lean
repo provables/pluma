@@ -10,7 +10,7 @@ instance : ToString SocketAddress where
 
 namespace Server
 
-def MAX_BUFFER := 8192
+def MAX_BUFFER : UInt64 := 8192
 
 def readAndProcess (socket : Socket) (f : ByteArray → BaseServerM ByteArray)
     : ServerM UInt32 := do
@@ -20,13 +20,13 @@ def readAndProcess (socket : Socket) (f : ByteArray → BaseServerM ByteArray)
       match t with
       | some (.ok none) =>
         IO.println s!"client disconnected: {← socket.getPeerName}"
-        return (some 0, default)
+        return (some (0 : UInt32), default)
       | some (.ok (some u)) =>
         if let some i := u.findIdx? (· == 10) then
           let data_received := data.append <| u.extract 0 (i + 1)
           let remaining := u.extract (i + 1) u.size
           let output ← f data_received
-          match (← socket.send output).result?.get with
+          match (← socket.send #[output]).result?.get with
           | some (.ok _) => return (none, remaining)
           | some (.error e) =>
             IO.println s!"got error while writing: {e}"
