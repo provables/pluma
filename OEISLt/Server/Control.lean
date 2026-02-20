@@ -11,7 +11,8 @@ instance : Repr Json where
   reprPrec j _ := Json.render j
 
 inductive ServerError where
-  | FromOEISM (error : String)
+  | FromOEISM (error : OEISError)
+  | FromIOError (error : String)
   | MissingPlugin (name : String)
   | JsonDecodeError (val : Json)
   | ClientError (val : Json)
@@ -35,13 +36,17 @@ abbrev ServerM := ReaderT ServerContext (EIO ServerError)
 def toBase {α : Type} (act : ServerM α) : BaseServerM (Except ServerError α) := do
   EIO.toBaseIO <| ReaderT.run act (← read)
 
-def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State) : IO α :=
+def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State)
+    : EIO OEISError α :=
   ReaderT.run a ⟨env, ctx, state⟩
 
 instance : MonadLift OEISM ServerM where
   monadLift o := do
     let x ← read
-    IO.toEIO (fun e => ServerError.FromOEISM s!"{e}") <| runOEISM o x.env x.ctx x.state
+    runOEISM o x.env x.ctx x.state |>.adapt (fun e => ServerError.FromOEISM e)
+
+instance : MonadLift IO ServerM where
+  monadLift o := IO.toEIO (fun e => ServerError.FromIOError s!"{e}") o
 
 instance : MonadLift BaseServerM ServerM where
   monadLift o := return (← o)
