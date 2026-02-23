@@ -12,8 +12,8 @@ namespace Server
 
 def MAX_BUFFER : UInt64 := 8192
 
-def readAndProcess (socket : Socket) (f : ByteArray → BaseServerM ByteArray)
-    : ServerM UInt32 := do
+def readAndProcess (socket : Socket) (f : ByteArray → BaseClientM ByteArray)
+    : ClientM UInt32 := do
   let mut data : ByteArray := default
   while true do
     let (e, remaining) ← (← socket.recv? MAX_BUFFER).result?.map (fun t => do

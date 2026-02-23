@@ -12,14 +12,14 @@ open Lean Std Net Std.Internal.UV.TCP
 namespace Server
 
 unsafe
-def runPluginJson (command : String) (inp : Json) : ServerM Json := do
-  let data := (← read).config.plugins
+def runPluginJson (command : String) (inp : Json) : ClientM Json := do
+  let data := (← read).server.config.plugins
   dbg_trace "starting runPlugin"
-  let some cmd := (← read).commands.get? command | throw <| .MissingPlugin command
+  let some cmd := (← read).server.commands.get? command | throw <| .MissingPlugin command
   dbg_trace "got command {cmd}"
   let some pluginData := data.get? cmd | throw <| .MissingPlugin command
   dbg_trace "got plugin {pluginData.name}"
-  match (← read).env.evalConst Plugin default pluginData.name with
+  match (← read).server.env.evalConst Plugin default pluginData.name with
   | .ok v =>
     v.function inp
   | .error e =>
@@ -38,7 +38,7 @@ def onError (err : ServerError) : Json :=
   ]
 
 unsafe
-def runPluginOnString (inp : ByteArray) : ServerM Json := do
+def runPluginOnString (inp : ByteArray) : ClientM Json := do
   let some s := String.fromUTF8? inp | throw ServerError.UTF8Error
   let .ok obj := Json.parse s | throw <| .JsonDecodeError s
   let command ← obj.getObjValAs? String "cmd" |>.mapError
@@ -48,22 +48,11 @@ def runPluginOnString (inp : ByteArray) : ServerM Json := do
   runPluginJson command args
 
 unsafe
-def runMessage (inp : ByteArray) : BaseServerM ByteArray := do
-  let outMsg := ToString.toString <| match (← toBase <| runPluginOnString inp) with
+def runMessage (inp : ByteArray) : BaseClientM ByteArray := do
+  let outMsg := ToString.toString <| match (← ClientM.toBase <| runPluginOnString inp) with
   | .ok r => onSuccess r
   | .error e => onError e
   return String.toUTF8 s!"{outMsg}\n"
-
-unsafe
-def processClient (socket : Socket) : ServerM UInt32 := do
-  IO.println s!"processing client with socket {← socket.getPeerName}"
-  let s ← read
-  let t := s.config.plugins.keys
-  dbg_trace "plugins available: {t}"
-  let x : Json := 3
-  let y ← runPluginJson "dummy" x
-  IO.println s!"output of dummy: {y}"
-  return 0
 
 unsafe
 def server : ServerM UInt32 := do
@@ -79,6 +68,7 @@ def server : ServerM UInt32 := do
   socket.bind endpoint
   socket.listen 1
   IO.println s!"[OEIS-Lt v{serverCtx.version}] Ready on port {config.port}"
+  IO.println s!"Database: {serverCtx.config.dbPath}"
   let commands := serverCtx.commands
   IO.println s!"Plugins loaded: {commands.keys}"
   while true do
@@ -89,7 +79,7 @@ def server : ServerM UInt32 := do
       | .ok s =>
         let client ← s.getPeerName
         IO.println s!"client connected: {client}"
-        let _u ← IO.asTask <| ← toIO <| readAndProcess s runMessage
+        let _u ← IO.asTask <| ← toIO <| ClientM.toServerM <| readAndProcess s runMessage
       | .error e =>
         IO.println s!"client connection error: {e}"
     )
@@ -104,6 +94,19 @@ def mkCommandTable (env : Environment) : ConfigM (Std.HashMap String Name) := do
   return Std.HashMap.ofList u
 
 unsafe
+def exec {α : Type} (act : ServerM α) : ConfigM α := do
+  let cfg ← read
+  let modules := cfg.plugins.values.toArray.map (·.mod)
+  dbg_trace "Loading modules: {modules}"
+  enableInitializersExecution
+  initSearchPath (← findSysroot)
+  let env ← importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
+  let ctx : Core.Context := {fileName := "", fileMap := default}
+  let state : Core.State := {env}
+  let commands ← mkCommandTable env
+  runServerM act env ctx state cfg commands VERSION
+
+unsafe
 def run : ConfigM UInt32 := do
   -- Here load modules from `plugins`
   -- and ServerM.run the main function
@@ -116,8 +119,6 @@ def run : ConfigM UInt32 := do
   let ctx : Core.Context := {fileName := "", fileMap := default}
   let state : Core.State := {env}
   let commands ← mkCommandTable env
-  IO.println s!"Loading database from: {cfg.dbPath}"
-  let db ← SQLite.openWith cfg.dbPath { mode := .readWrite }
-  runServerM server env ctx state cfg commands db VERSION
+  runServerM server env ctx state cfg commands VERSION
 
 end Server
