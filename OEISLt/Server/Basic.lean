@@ -107,18 +107,19 @@ def exec {α : Type} (act : ServerM α) : ConfigM α := do
   runServerM act env ctx state cfg commands VERSION
 
 unsafe
-def run : ConfigM UInt32 := do
-  -- Here load modules from `plugins`
-  -- and ServerM.run the main function
-  let cfg ← read
-  let modules := cfg.plugins.values.toArray.map (·.mod)
-  dbg_trace "Loading modules: {modules}"
-  enableInitializersExecution
-  initSearchPath (← findSysroot)
-  let env ← importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
-  let ctx : Core.Context := {fileName := "", fileMap := default}
-  let state : Core.State := {env}
-  let commands ← mkCommandTable env
-  runServerM server env ctx state cfg commands VERSION
+def playground {α : Type} (act : ServerM α) (config : System.FilePath := "./oeis-lt.toml")
+    : IO α := do
+  let cfg ← EIO.toIO (fun e => s!"{e}") <| loadConfig config
+  ReaderT.run (exec act) cfg
+
+unsafe
+def run : ConfigM UInt32 := exec server
+
+-- #eval do
+--   IO.println "foo"
+--   playground do
+--     IO.println "bar"
+--     let x ← Dummy.plugin.function 2
+--     IO.println s!"x is {x}"
 
 end Server
