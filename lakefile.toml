@@ -21,6 +21,10 @@ rev = "v4.27.0"
 name = "oeis-lt-proto"
 path = "/Users/walter/repos/oeis-lt-proto"
 
+[[require]]
+name = "leansqlite"
+git = "https://github.com/leanprover/leansqlite.git"
+
 [[lean_lib]]
 name = "OEISLt"
 

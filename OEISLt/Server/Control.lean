@@ -1,5 +1,6 @@
 import Lean
 import Std.Internal.UV.TCP
+import SQLite
 import OEISLt.Cli.Config
 import OEISLtProto
 
@@ -28,6 +29,7 @@ structure ServerContext where
   state : Core.State
   config : Config
   commands : Std.HashMap String Name
+  db : SQLite
   version : String
 
 abbrev BaseServerM := ReaderT ServerContext BaseIO
@@ -55,9 +57,10 @@ def runServerM₀ {α : Type} (act : ServerM α) (ctx : ServerContext) : IO α :
   EIO.toIO (fun e => s!"Server error: {repr e}") <| ReaderT.run act ctx
 
 def runServerM {α : Type} (act : ServerM α) (env : Environment) (ctx : Core.Context)
-    (state : Core.State) (config : Config) (commands : Std.HashMap String Name) (version : String)
+    (state : Core.State) (config : Config) (commands : Std.HashMap String Name)
+    (db : SQLite) (version : String)
     : IO α :=
-  runServerM₀ act ⟨env, ctx, state, config, commands, version⟩
+  runServerM₀ act ⟨env, ctx, state, config, commands, db, version⟩
 
 def toIO {α : Type} (act : ServerM α) : ServerM (IO α) := Functor.map pure act
 

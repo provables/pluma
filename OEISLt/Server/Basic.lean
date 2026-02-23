@@ -116,6 +116,8 @@ def run : ConfigM UInt32 := do
   let ctx : Core.Context := {fileName := "", fileMap := default}
   let state : Core.State := {env}
   let commands ← mkCommandTable env
-  runServerM server env ctx state cfg commands VERSION
+  IO.println s!"Loading database from: {cfg.dbPath}"
+  let db ← SQLite.openWith cfg.dbPath { mode := .readWrite }
+  runServerM server env ctx state cfg commands db VERSION
 
 end Server

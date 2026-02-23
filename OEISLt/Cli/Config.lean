@@ -15,9 +15,10 @@ structure Config where
   wait : Bool
   foreground : Bool
   plugins : Std.HashMap Name PluginData
+  dbPath : System.FilePath
   deriving Repr
 
-instance : Inhabited Config := ⟨ 7000, false, false, false, default ⟩
+instance : Inhabited Config := ⟨ 7000, false, false, false, default, default ⟩
 
 abbrev ConfigM := ReaderT Config IO
 
@@ -82,6 +83,10 @@ def mkConfigFromTable (t : Table) : Except String Config :=
           ) d.plugins
           return {d with plugins := y}
         | _ => throw s!"`plugins` needs to be an array of tables, got {v}"
+      | `db =>
+        match v with
+        | .string _ s => return {d with dbPath := s }
+        | _ => throw s!"`db` has to be string, got {v}"
       | s => throw s!"Unrecognized option `{s}`"
     ) default
 
