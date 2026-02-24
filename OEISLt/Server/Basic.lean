@@ -107,10 +107,10 @@ def exec {α : Type} (act : ServerM α) : ConfigM α := do
   runServerM act env ctx state cfg commands VERSION
 
 unsafe
-def playground {α : Type} (act : ServerM α) (config : System.FilePath := "./oeis-lt.toml")
+def playground {α : Type} (act : ClientM α) (config : System.FilePath := "./oeis-lt.toml")
     : IO α := do
   let cfg ← EIO.toIO (fun e => s!"{e}") <| loadConfig config
-  ReaderT.run (exec act) cfg
+  ReaderT.run (exec <| ClientM.toServerM act) cfg
 
 unsafe
 def run : ConfigM UInt32 := exec server
