@@ -47,18 +47,20 @@ def ClientM.toBase {α : Type} (act : ClientM α) : BaseClientM (Except ServerEr
 --   EIO.toBaseIO <| ReaderT.run act (← read)
 
 def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State)
+    (db : SQLite)
     : EIO OEISError α :=
-  ReaderT.run a ⟨env, ctx, state⟩
+  ReaderT.run a ⟨env, ctx, state, db⟩
 
-instance : MonadLift OEISM ServerM where
-  monadLift o := do
-    let x ← read
-    runOEISM o x.env x.ctx x.state |>.adapt (fun e => ServerError.FromOEISM e)
+-- instance : MonadLift OEISM ServerM where
+--   monadLift o := do
+--     let x ← read
+--     runOEISM o x.env x.ctx x.state |>.adapt (fun e => ServerError.FromOEISM e)
 
 instance : MonadLift OEISM ClientM where
   monadLift o := do
     let x ← read
-    runOEISM o x.server.env x.server.ctx x.server.state |>.adapt (fun e => ServerError.FromOEISM e)
+    runOEISM o x.server.env x.server.ctx x.server.state x.db
+      |>.adapt (fun e => ServerError.FromOEISM e)
 
 instance : MonadLift IO ServerM where
   monadLift o := IO.toEIO (fun e => ServerError.FromIOError s!"{e}") o
