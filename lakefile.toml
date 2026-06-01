@@ -8,22 +8,17 @@ pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 autoImplicit = false
 
 [[require]]
-name = "mathlib"
-scope = "leanprover-community"
-rev = "v4.27.0"
-
-[[require]]
-name = "Cli"
-git = "https://github.com/leanprover/lean4-cli.git"
-rev = "v4.27.0"
-
-[[require]]
 name = "oeis-lt-proto"
-path = "/Users/walter/repos/oeis-lt-proto"
+git = "https://github.com/provables/oeis-lt-proto.git"
 
 [[require]]
 name = "leansqlite"
 git = "https://github.com/leanprover/leansqlite.git"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.30.0"
 
 [[lean_lib]]
 name = "OEISLt"
