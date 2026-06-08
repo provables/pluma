@@ -6,9 +6,9 @@ db = "./tutorial.db"
 #plugins = ["OEISLt.Plugins.Dummy"]
 
 [[plugins]]
-module = "OEISLt.Plugins.Dummy"
+module = "Pluma.Plugins.Dummy"
 name = "Dummy.plugin"
 
 [[plugins]]
-module = "OEISLt.Plugins.Dummy"
+module = "Pluma.Plugins.Dummy"
 name = "Dummy.plugin2"
