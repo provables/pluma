@@ -1,11 +1,11 @@
 import Std.Internal.UV.TCP
-import OEISLt.Version
-import OEISLt.Cli.Config
-import OEISLtProto
-import OEISLt.Server.Control
-import OEISLt.Server.Socket
+import Pluma.Version
+import Pluma.Cli.Config
+import PlumaProto
+import Pluma.Server.Control
+import Pluma.Server.Socket
 -- this is here just for testing. Remove when the server loads from config
-import OEISLt.Plugins.Dummy
+import Pluma.Plugins.Dummy
 
 open Lean Std Net Std.Internal.UV.TCP
 
@@ -67,7 +67,7 @@ def server : ServerM UInt32 := do
   let endpoint := SocketAddress.v4 {addr := addr, port := config.port}
   socket.bind endpoint
   socket.listen 1
-  IO.println s!"[OEIS-Lt v{serverCtx.version}] Ready on port {config.port}"
+  IO.println s!"[Pluma v{serverCtx.version}] Ready on port {config.port}"
   IO.println s!"Database: {serverCtx.config.dbPath}"
   let commands := serverCtx.commands
   IO.println s!"Plugins loaded: {commands.keys}"
@@ -107,7 +107,7 @@ def exec {α : Type} (act : ServerM α) : ConfigM α := do
   runServerM act env ctx state cfg commands VERSION
 
 unsafe
-def playground {α : Type} (act : ClientM α) (config : System.FilePath := "./oeis-lt.toml")
+def playground {α : Type} (act : ClientM α) (config : System.FilePath := "./pluma.toml")
     : IO α := do
   let cfg ← EIO.toIO (fun e => s!"{e}") <| loadConfig config
   ReaderT.run (exec <| ClientM.toServerM act) cfg

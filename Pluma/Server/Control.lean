@@ -1,8 +1,8 @@
 import Lean
 import Std.Internal.UV.TCP
 import SQLite
-import OEISLt.Cli.Config
-import OEISLtProto
+import Pluma.Cli.Config
+import PlumaProto
 
 open Lean Std
 
@@ -12,7 +12,7 @@ instance : Repr Json where
   reprPrec j _ := Json.render j
 
 inductive ServerError where
-  | FromOEISM (error : OEISError)
+  | FromPluma (error : PlumaError)
   | FromIOError (error : String)
   | MissingPlugin (name : String)
   | JsonDecodeError (val : Json)
@@ -43,24 +43,16 @@ abbrev ClientM := ReaderT ClientContext (EIO ServerError)
 def ClientM.toBase {α : Type} (act : ClientM α) : BaseClientM (Except ServerError α) := do
   EIO.toBaseIO <| ReaderT.run act (← read)
 
--- def ClientM.toBase {α : Type} (act : ClientM α) : BaseServerM (Except ServerError α) := do
---   EIO.toBaseIO <| ReaderT.run act (← read)
-
-def runOEISM {α : Type} (a : OEISM α) (env : Environment) (ctx : Core.Context) (state : Core.State)
+def runPlumaM {α : Type} (a : PlumaM α) (env : Environment) (ctx : Core.Context) (state : Core.State)
     (db : SQLite)
-    : EIO OEISError α :=
+    : EIO PlumaError α :=
   ReaderT.run a ⟨env, ctx, state, db⟩
 
--- instance : MonadLift OEISM ServerM where
---   monadLift o := do
---     let x ← read
---     runOEISM o x.env x.ctx x.state |>.adapt (fun e => ServerError.FromOEISM e)
-
-instance : MonadLift OEISM ClientM where
+instance : MonadLift PlumaM ClientM where
   monadLift o := do
     let x ← read
-    runOEISM o x.server.env x.server.ctx x.server.state x.db
-      |>.adapt (fun e => ServerError.FromOEISM e)
+    runPlumaM o x.server.env x.server.ctx x.server.state x.db
+      |>.adapt (fun e => ServerError.FromPluma e)
 
 instance : MonadLift IO ServerM where
   monadLift o := IO.toEIO (fun e => ServerError.FromIOError s!"{e}") o

@@ -1,15 +1,15 @@
-name = "oeis-lt"
+name = "pluma"
 version = "0.1.0"
 keywords = ["math"]
-defaultTargets = ["OEISLt"]
+defaultTargets = ["Pluma"]
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 autoImplicit = false
 
 [[require]]
-name = "oeis-lt-proto"
-git = "https://github.com/provables/oeis-lt-proto.git"
+name = "pluma-proto"
+git = "https://github.com/provables/pluma-proto.git"
 
 [[require]]
 name = "leansqlite"
@@ -21,10 +21,10 @@ scope = "leanprover-community"
 rev = "v4.30.0"
 
 [[lean_lib]]
-name = "OEISLt"
+name = "Pluma"
 
 [[lean_exe]]
 supportInterpreter = true
-name = "oeis-lt"
+name = "pluma"
 root = "Main"
-needs = ["OEISLt"]
+needs = ["Pluma"]

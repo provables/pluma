@@ -28,7 +28,7 @@
         in
         {
           packages = { 
-            default = build.oeisLt;
+            default = build.pluma;
           };
           devShells = {
             default = shell;

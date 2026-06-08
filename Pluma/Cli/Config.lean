@@ -1,6 +1,6 @@
 import Lake.Toml
 import Lake.Load.Toml
-import OEISLt.Cli.Error
+import Pluma.Cli.Error
 
 open Lean Lake.Toml Lean.Parser
 
@@ -22,7 +22,7 @@ instance : Inhabited Config := ⟨ 7000, false, false, false, default, default �
 
 abbrev ConfigM := ReaderT Config IO
 
-def loadConfigToml (config : System.FilePath) : EIO OEISLtError Table := do
+def loadConfigToml (config : System.FilePath) : EIO PlumaServerError Table := do
   let input ← IO.toEIO .IOError (IO.FS.readFile config)
   let ictx := mkInputContext input config.toString
   match (← loadToml ictx |>.toBaseIO) with
@@ -90,26 +90,18 @@ def mkConfigFromTable (t : Table) : Except String Config :=
       | s => throw s!"Unrecognized option `{s}`"
     ) default
 
-def loadConfig (config : System.FilePath) : EIO OEISLtError Config := do
+def loadConfig (config : System.FilePath) : EIO PlumaServerError Config := do
   let table ← loadConfigToml config
   let cfg := mkConfigFromTable table
   match cfg with
   | .ok c => return c
   | .error e => throw <| .ConfigError e
 
-def loadConfigFromEnv (var : String) (default_file : System.FilePath := "./oeis-lt.toml") :
-    EIO OEISLtError Config := do
+def loadConfigFromEnv (var : String) (default_file : System.FilePath := "./pluma.toml") :
+    EIO PlumaServerError Config := do
   let file := ((← IO.getEnv var) |>.map System.FilePath.mk) |>.getD default_file
   loadConfig file
 
 def runConfigM {α : Type} (act : ConfigM α) : IO α := do
-  let cfg ← EIO.toIO (fun e => IO.Error.userError s!"{e}") <| loadConfigFromEnv "OEISLT_CONFIG_FILE"
+  let cfg ← EIO.toIO (fun e => IO.Error.userError s!"{e}") <| loadConfigFromEnv "PLUMA_CONFIG_FILE"
   ReaderT.run act cfg
-
--- run_meta do
---   -- let t ← EIO.toIO (fun e => IO.Error.userError s!"{e}") <| loadConfigToml "./oeis-lt.toml"
---   -- let x := decodePlugin t
---   -- dbg_trace (repr x)
---   let x := loadConfig "./oeis-lt.toml"
---   let y ← EIO.toIO (fun e => IO.Error.userError s!"Error: {e}") x
---   dbg_trace "Config: {repr y}"

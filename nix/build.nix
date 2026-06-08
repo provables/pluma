@@ -12,7 +12,7 @@ let
   deps =
     let
       hashes = {
-        "aarch64-darwin" = "sha256-YWIj0dUYrfqoUbwakCPAv5Vcjsu/JU+CHPL5zhAZAGw=";
+        "aarch64-darwin" = "";
         "aarch64-linux" = "";
         "x86_64-darwin" = "";
         "x86_64-linux" = "";
@@ -28,15 +28,15 @@ let
       outputHash = hashes.${system};
       buildPhase = ''
         lake exe cache get
-        lake build OEISLt
-        lake build oeis-lt
+        lake build Pluma
+        lake build pluma
       '';
     };
 in
 {
-  oeisLt = buildLean.package {
+  pluma = buildLean.package {
     inherit leanVersion;
-    name = "oeis-lt";
+    name = "pluma";
     inherit deps;
     src = lib.cleanSource ./..;
     nativeBuildInputs = [ makeWrapper ];
@@ -44,7 +44,7 @@ in
     phases = [ "unpackPhase" "buildPhase" "distPhase" ];
     buildPhase = ''
       mkdir -p $out/{bin,lib}
-      lake build oeis-lt
+      lake build pluma
       rsync -a .lake/build/lib/ $out/lib/
       rsync -a .lake/packages $out/lib/
       rsync -a .lake/build/bin/ $out/bin/
@@ -53,7 +53,7 @@ in
         find $out/lib/packages -mindepth 1 -maxdepth 1 -type d \
           -exec echo -n ":{}/.lake/build/lib/lean" ';'
       )
-      wrapProgram $out/bin/oeis-lt \
+      wrapProgram $out/bin/pluma \
         --set LEAN_PATH "$LEAN_PATH" \
         --set PATH "$PATH" 
     '';
