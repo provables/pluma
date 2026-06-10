@@ -22,12 +22,12 @@
             inherit toolchain;
           };
 
-          build = pkgs.callPackage ./nix/build.nix { 
+          build = pkgs.callPackage ./nix/build.nix {
             inherit buildLean leanVersion;
           };
         in
         {
-          packages = { 
+          packages = {
             default = build.pluma;
           };
           devShells = {
