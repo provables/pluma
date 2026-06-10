@@ -1,7 +1,6 @@
 import PlumaProto
 import SQLite
 
-#check SQLite.AccessMode
 namespace Dummy
 def plugin : Plugin := mkPlugin "dummy" (fun (n : Nat) => pure n)
 
