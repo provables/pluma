@@ -1,6 +1,6 @@
 import PlumaProto
 
-open Lean
+open Lean Elab.Command
 
 namespace Eval
 
@@ -14,6 +14,11 @@ structure Response where
 
 def doEval (req : Code) : PlumaM Response := do
   IO.println s!"requested: {req.src}"
+  let y ← ((do
+    elabCommand (← `(command|#print "hello"))
+    elabCommand (← `(command|def $(mkIdent `gooo) : Nat := 45))
+  ) : CommandElabM Unit)
+  dbg_trace y
   return ⟨true⟩
 
 def eval : Plugin := mkPlugin "eval" doEval

@@ -21,8 +21,10 @@ def runPluginJson (command : String) (inp : Json) : ClientM Json := do
   dbg_trace "got plugin {pluginData.name}"
   match (← read).server.env.evalConst Plugin default pluginData.name with
   | .ok v =>
+    dbg_trace "all well, got {v.cmd}"
     v.function inp
   | .error e =>
+    dbg_trace "eval plugin got error string {e}"
     throw <| ServerError.ImportError e
 
 def onSuccess (obj : Json) : Json :=
@@ -107,19 +109,6 @@ def exec {α : Type} (act : ServerM α) : ConfigM α := do
   runServerM act env ctx state cfg commands VERSION
 
 unsafe
-def playground {α : Type} (act : ClientM α) (config : System.FilePath := "./pluma.toml")
-    : IO α := do
-  let cfg ← EIO.toIO (fun e => s!"{e}") <| loadConfig config
-  ReaderT.run (exec <| ClientM.toServerM act) cfg
-
-unsafe
 def run : ConfigM UInt32 := exec server
-
--- #eval do
---   IO.println "foo"
---   playground do
---     IO.println "bar"
---     let x ← Dummy.plugin.function 2
---     IO.println s!"x is {x}"
 
 end Server

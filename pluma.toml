@@ -12,3 +12,7 @@ name = "Dummy.plugin"
 [[plugins]]
 module = "Pluma.Plugins.Dummy"
 name = "Dummy.plugin2"
+
+[[plugins]]
+module = "Pluma.Plugins.Eval"
+name = "Eval.eval"

@@ -44,14 +44,14 @@ def ClientM.toBase {α : Type} (act : ClientM α) : BaseClientM (Except ServerEr
   EIO.toBaseIO <| ReaderT.run act (← read)
 
 def runPlumaM {α : Type} (a : PlumaM α) (env : Environment) (ctx : Core.Context) (state : Core.State)
-    (db : SQLite)
+    (db : SQLite) (liftCommandThrowError : Bool)
     : EIO PlumaError α :=
-  ReaderT.run a ⟨env, ctx, state, db⟩
+  ReaderT.run a ⟨env, ctx, state, db, liftCommandThrowError⟩
 
 instance : MonadLift PlumaM ClientM where
   monadLift o := do
     let x ← read
-    runPlumaM o x.server.env x.server.ctx x.server.state x.db
+    runPlumaM o x.server.env x.server.ctx x.server.state x.db true
       |>.adapt (fun e => ServerError.FromPluma e)
 
 instance : MonadLift IO ServerM where
