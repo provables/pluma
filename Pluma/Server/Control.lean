@@ -43,8 +43,12 @@ abbrev ClientM := ReaderT ClientContext (EIO ServerError)
 def ClientM.toBase {α : Type} (act : ClientM α) : BaseClientM (Except ServerError α) := do
   EIO.toBaseIO <| ReaderT.run act (← read)
 
-def runPlumaM {α : Type} (a : PlumaM α) (env : Environment) (ctx : Core.Context) (state : Core.State)
-    (db : SQLite) (liftCommandThrowError : Bool)
+def runPlumaM {α : Type} (a : PlumaM α)
+    (env : Environment)
+    (ctx : Core.Context)
+    (state : Core.State)
+    (db : SQLite)
+    (liftCommandThrowError : Bool)
     : EIO PlumaError α :=
   ReaderT.run a ⟨env, ctx, state, db, liftCommandThrowError⟩
 

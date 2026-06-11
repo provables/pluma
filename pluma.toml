@@ -14,5 +14,5 @@ module = "Pluma.Plugins.Dummy"
 name = "Dummy.plugin2"
 
 [[plugins]]
-module = "Pluma.Plugins.Eval"
-name = "Eval.eval"
+module = "Pluma.Plugins.Compile"
+name = "Compile.compile"

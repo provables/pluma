@@ -95,20 +95,25 @@ def mkCommandTable (env : Environment) : ConfigM (Std.HashMap String Name) := do
   )
   return Std.HashMap.ofList u
 
-unsafe
-def exec {α : Type} (act : ServerM α) : ConfigM α := do
+def loadModules : ConfigM Environment := do
   let cfg ← read
   let modules := cfg.plugins.values.toArray.map (·.mod)
   dbg_trace "Loading modules: {modules}"
-  enableInitializersExecution
-  initSearchPath (← findSysroot)
-  let env ← importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
+  importModules (modules.map ({module := ·})) {} (trustLevel := 1024) (loadExts := true)
+
+unsafe
+def exec {α : Type} (env : Environment) (act : ServerM α) : ConfigM α := do
+  let cfg ← read
   let ctx : Core.Context := {fileName := "", fileMap := default}
   let state : Core.State := {env}
   let commands ← mkCommandTable env
   runServerM act env ctx state cfg commands VERSION
 
 unsafe
-def run : ConfigM UInt32 := exec server
+def run : ConfigM UInt32 := do
+  enableInitializersExecution
+  initSearchPath (← findSysroot)
+  let env ← loadModules
+  exec env server
 
 end Server
