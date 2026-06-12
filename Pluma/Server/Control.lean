@@ -55,7 +55,7 @@ def runPlumaM {α : Type} (a : PlumaM α)
 instance : MonadLift PlumaM ClientM where
   monadLift o := do
     let x ← read
-    runPlumaM o x.server.env x.server.ctx x.server.state x.db true
+    runPlumaM o x.server.env x.server.ctx x.server.state x.db false
       |>.adapt (fun e => ServerError.FromPluma e)
 
 instance : MonadLift IO ServerM where
